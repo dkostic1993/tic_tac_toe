@@ -1,5 +1,6 @@
 using TicTacToe.Audio;
 using TicTacToe.Stats;
+using TicTacToe.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -17,6 +18,9 @@ namespace TicTacToe.Game
         [Header("HUD")]
         [SerializeField] private HUDController hud;
         [SerializeField] private GameResultPopupController resultPopup;
+
+        [Header("VFX")]
+        [SerializeField] private ParticleBackground particleBackground;
 
         private readonly ThemeService _themeService = new ThemeService();
         private readonly StatsService _statsService = new StatsService();
@@ -135,9 +139,14 @@ namespace TicTacToe.Game
 
             if (hud != null)
             {
-                hud.SetMoveCounts(_session.Player1Moves, _session.Player2Moves);
+                var xCol = _theme != null ? _theme.xColor : new Color(0.2f, 0.85f, 1f, 1f);
+                var oCol = _theme != null ? _theme.oColor : new Color(1f, 0.85f, 0.2f, 1f);
+                hud.SetMoveCounts(_session.Player1Moves, _session.Player2Moves, _session.CurrentTurn, _session.IsOver, xCol, oCol);
                 hud.SetDurationSeconds(_session.DurationSeconds);
             }
+
+            if (particleBackground != null)
+                particleBackground.SetTurn(_session.CurrentTurn);
         }
     }
 }

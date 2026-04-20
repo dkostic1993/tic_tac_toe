@@ -21,3 +21,5 @@ MonoBehaviour:
   cellColor: {r: 1, g: 1, b: 1, a: 0.08}
   strikeSprite: {fileID: 0}
   strikeColor: {r: 1, g: 1, b: 1, a: 0.65}
+  particleA: {fileID: 21300000, guid: 6338db8244295991facb441dc52861d9, type: 3}
+  particleB: {fileID: 21300000, guid: bf606795328b4cce092c3981cb7aeb13, type: 3}

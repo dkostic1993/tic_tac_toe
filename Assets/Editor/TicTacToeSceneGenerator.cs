@@ -17,6 +17,8 @@ namespace TicTacToe.Editor
     {
         private const string ScenesDir = "Assets/Scenes";
         private const string ScriptableObjectsDir = "Assets/ScriptableObjects";
+        private const string NeedsArtDir = "Assets/Needs/Art";
+        private const string NeedsAudioDir = "Assets/Needs/Audio";
 
         [MenuItem("Tools/TicTacToe/Generate Scenes & Defaults")]
         public static void GenerateAll()
@@ -28,6 +30,7 @@ namespace TicTacToe.Editor
             }
 
             EnsureDirs();
+            EnsureParticleTexturesImportedAsSprites();
             EnsureDefaultThemeAssets();
             TicTacToeThemeAutoAssigner.AutoAssign();
 
@@ -71,6 +74,33 @@ namespace TicTacToe.Editor
                 AssetDatabase.CreateFolder("Assets", "ScriptableObjects");
         }
 
+        /// <summary>
+        /// particle*.png ship with Default texture import, so LoadAssetAtPath&lt;Sprite&gt; returns null.
+        /// Force Sprite (2D and UI) / Single so theme particles match the provided art.
+        /// </summary>
+        private static void EnsureParticleTexturesImportedAsSprites()
+        {
+            for (var i = 1; i <= 4; i++)
+            {
+                var path = $"{NeedsArtDir}/particle{i}.png";
+                if (!File.Exists(path))
+                    continue;
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (importer == null)
+                    continue;
+                var ok = importer.textureType == TextureImporterType.Sprite
+                    && importer.spriteImportMode == SpriteImportMode.Single
+                    && importer.alphaIsTransparency;
+                if (ok)
+                    continue;
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.SaveAndReimport();
+            }
+        }
+
         private static void EnsureDefaultThemeAssets()
         {
             EnsureTheme(
@@ -79,7 +109,9 @@ namespace TicTacToe.Editor
                 x: Color.white,
                 o: Color.white,
                 cell: new Color(1f, 1f, 1f, 0.08f),
-                strike: new Color(1f, 1f, 1f, 0.65f)
+                strike: new Color(1f, 1f, 1f, 0.65f),
+                particleAPath: $"{NeedsArtDir}/particle1.png",
+                particleBPath: $"{NeedsArtDir}/particle2.png"
             );
 
             EnsureTheme(
@@ -88,14 +120,18 @@ namespace TicTacToe.Editor
                 x: new Color(0.2f, 0.85f, 1f, 1f),
                 o: new Color(1f, 0.85f, 0.2f, 1f),
                 cell: new Color(1f, 1f, 1f, 0.05f),
-                strike: new Color(1f, 0.35f, 0.85f, 0.85f)
+                strike: new Color(1f, 0.35f, 0.85f, 0.85f),
+                particleAPath: $"{NeedsArtDir}/particle3.png",
+                particleBPath: $"{NeedsArtDir}/particle4.png"
             );
         }
 
-        private static void EnsureTheme(string assetName, string themeName, Color x, Color o, Color cell, Color strike)
+        private static void EnsureTheme(string assetName, string themeName, Color x, Color o, Color cell, Color strike, string particleAPath, string particleBPath)
         {
             var themePath = Path.Combine(ScriptableObjectsDir, assetName);
             var theme = AssetDatabase.LoadAssetAtPath<ThemeDefinition>(themePath);
+            var pA = LoadSpriteAt(particleAPath);
+            var pB = LoadSpriteAt(particleBPath);
             if (theme == null)
             {
                 theme = ScriptableObject.CreateInstance<ThemeDefinition>();
@@ -104,16 +140,21 @@ namespace TicTacToe.Editor
                 theme.oColor = o;
                 theme.cellColor = cell;
                 theme.strikeColor = strike;
+                theme.particleA = pA;
+                theme.particleB = pB;
                 AssetDatabase.CreateAsset(theme, themePath);
             }
             else
             {
-                // Keep any user-assigned sprites, but ensure colors exist.
                 theme.themeName = themeName;
                 theme.xColor = x;
                 theme.oColor = o;
                 theme.cellColor = cell;
                 theme.strikeColor = strike;
+                if (pA != null)
+                    theme.particleA = pA;
+                if (pB != null)
+                    theme.particleB = pB;
                 EditorUtility.SetDirty(theme);
             }
         }
@@ -126,6 +167,7 @@ namespace TicTacToe.Editor
             CreateEventSystem();
             var canvas = CreateCanvas("Canvas");
             canvas.gameObject.AddComponent<EnsureCamera>();
+            var vfx = CreateParticleBackground(canvas.transform);
             var safeArea = CreateSafeAreaRoot(canvas.transform);
 
             var audio = CreateAudioManager();
@@ -133,6 +175,7 @@ namespace TicTacToe.Editor
             // Calling DontDestroyOnLoad from editor scripts throws InvalidOperationException.
 
             var themeRegistry = CreateThemeRegistry(safeArea.transform);
+            if (vfx != null) SetPrivateField(vfx, "themeRegistry", themeRegistry);
 
             var menuRoot = new GameObject("PlayMenuRoot", typeof(RectTransform));
             menuRoot.transform.SetParent(safeArea.transform, false);
@@ -173,12 +216,14 @@ namespace TicTacToe.Editor
             CreateEventSystem();
             var canvas = CreateCanvas("Canvas");
             canvas.gameObject.AddComponent<EnsureCamera>();
+            var vfx = CreateParticleBackground(canvas.transform);
             var safeArea = CreateSafeAreaRoot(canvas.transform);
 
             // Ensure audio exists even if user starts Play mode from Game scene.
             CreateAudioManager();
 
             var themeRegistry = CreateThemeRegistry(safeArea.transform);
+            if (vfx != null) SetPrivateField(vfx, "themeRegistry", themeRegistry);
 
             var root = new GameObject("GameRoot", typeof(RectTransform));
             root.transform.SetParent(safeArea.transform, false);
@@ -221,6 +266,7 @@ namespace TicTacToe.Editor
             SetPrivateField(controller, "strikeView", strike);
             SetPrivateField(controller, "hud", hud);
             SetPrivateField(controller, "resultPopup", resultPopup);
+            SetPrivateField(controller, "particleBackground", vfx);
 
             var settingsButtonController = settingsButton.AddComponent<GameSettingsButtonController>();
             SetPrivateField(settingsButtonController, "settingsButton", settingsButton.GetComponent<Button>());
@@ -304,6 +350,29 @@ namespace TicTacToe.Editor
             return safe;
         }
 
+        private static ParticleBackground CreateParticleBackground(Transform canvas)
+        {
+            var go = new GameObject("ParticleBackground", typeof(RectTransform), typeof(ParticleBackground));
+            go.transform.SetParent(canvas, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+
+            // Put it above the solid background but behind all UI.
+            go.transform.SetSiblingIndex(1);
+
+            var vfx = go.GetComponent<ParticleBackground>();
+            // Drive by player turn: P1 -> (particle1 + particle4), P2 -> (particle2 + particle3)
+            SetPrivateField(vfx, "particle1", LoadSpriteAt($"{NeedsArtDir}/particle1.png"));
+            SetPrivateField(vfx, "particle2", LoadSpriteAt($"{NeedsArtDir}/particle2.png"));
+            SetPrivateField(vfx, "particle3", LoadSpriteAt($"{NeedsArtDir}/particle3.png"));
+            SetPrivateField(vfx, "particle4", LoadSpriteAt($"{NeedsArtDir}/particle4.png"));
+            return vfx;
+        }
+
         private static AudioManager CreateAudioManager()
         {
             var go = new GameObject("AudioManager", typeof(AudioManager));
@@ -329,11 +398,11 @@ namespace TicTacToe.Editor
 
             // Auto-wire provided assignment clips when present in Assets/Audio.
             // Prefer direct paths to avoid AssetDatabase.FindAssets timing/import quirks.
-            var music = LoadClipAt("Assets/Audio/music.wav") ?? FindAudioClipByName("music");
-            var click1 = LoadClipAt("Assets/Audio/click1.wav") ?? FindAudioClipByName("click1");
-            var click2 = LoadClipAt("Assets/Audio/click2.wav") ?? FindAudioClipByName("click2");
-            var pop = LoadClipAt("Assets/Audio/pop.wav") ?? FindAudioClipByName("pop");
-            var woosh = LoadClipAt("Assets/Audio/woosh.wav") ?? FindAudioClipByName("woosh");
+            var music = LoadClipAt($"{NeedsAudioDir}/music.wav") ?? FindAudioClipByName("music");
+            var click1 = LoadClipAt($"{NeedsAudioDir}/click1.wav") ?? FindAudioClipByName("click1");
+            var click2 = LoadClipAt($"{NeedsAudioDir}/click2.wav") ?? FindAudioClipByName("click2");
+            var pop = LoadClipAt($"{NeedsAudioDir}/pop.wav") ?? FindAudioClipByName("pop");
+            var woosh = LoadClipAt($"{NeedsAudioDir}/woosh.wav") ?? FindAudioClipByName("woosh");
 
             SetPrivateField(mgr, "bgmClip", music);
             SetPrivateField(mgr, "buttonClickClips", new[] { click1, click2 });
@@ -365,12 +434,20 @@ namespace TicTacToe.Editor
                 var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
                 if (clip != null)
                 {
-                    if (path.StartsWith("Assets/Audio/"))
+                    if (path.StartsWith(NeedsAudioDir + "/"))
                         return clip;
                     fallback ??= clip;
                 }
             }
             return fallback;
+        }
+
+        private static Sprite LoadSpriteAt(string assetPath)
+        {
+            if (string.IsNullOrWhiteSpace(assetPath))
+                return null;
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            return AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
         }
 
         private static ThemeRegistry CreateThemeRegistry(Transform parent)
@@ -708,8 +785,14 @@ namespace TicTacToe.Editor
             layout.childAlignment = TextAnchor.MiddleCenter;
 
             var duration = CreateTMPText(hudGo.transform, "Duration", "00:00");
-            var p1 = CreateTMPText(hudGo.transform, "P1Moves", "0");
-            var p2 = CreateTMPText(hudGo.transform, "P2Moves", "0");
+            var durationLe = duration.gameObject.AddComponent<LayoutElement>();
+            durationLe.preferredWidth = 220;
+            durationLe.preferredHeight = 104;
+            durationLe.minHeight = 96;
+            duration.alignment = TextAlignmentOptions.Center;
+
+            var (p1, p1Frame) = CreateHudMoveStat(hudGo.transform, "P1Moves", "P1: 0");
+            var (p2, p2Frame) = CreateHudMoveStat(hudGo.transform, "P2Moves", "P2: 0");
             var settingsButton = CreateButton(hudGo.transform, "Settings");
             settingsButton.GetComponent<RectTransform>().sizeDelta = new Vector2(260, 110);
 
@@ -717,8 +800,36 @@ namespace TicTacToe.Editor
             SetPrivateField(hud, "durationText", duration);
             SetPrivateField(hud, "player1MovesText", p1);
             SetPrivateField(hud, "player2MovesText", p2);
+            SetPrivateField(hud, "player1MoveFrame", p1Frame);
+            SetPrivateField(hud, "player2MoveFrame", p2Frame);
 
             return (hud, settingsButton.gameObject);
+        }
+
+        private static (TMP_Text text, Image frame) CreateHudMoveStat(Transform parent, string name, string initial)
+        {
+            var wrap = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            wrap.transform.SetParent(parent, false);
+            var le = wrap.GetComponent<LayoutElement>();
+            le.preferredWidth = 240;
+            le.preferredHeight = 104;
+            le.minHeight = 96;
+
+            var frame = wrap.GetComponent<Image>();
+            frame.raycastTarget = false;
+            frame.color = new Color(1f, 1f, 1f, 0.07f);
+
+            var tmp = CreateTMPText(wrap.transform, "Value", initial);
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.fontSize = 40;
+            tmp.enableWordWrapping = false;
+            var rt = tmp.GetComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(12, 10);
+            rt.offsetMax = new Vector2(-12, -10);
+
+            return (tmp, frame);
         }
 
         private static GameObject CreatePopupRoot(Transform parent, string name)
@@ -745,6 +856,12 @@ namespace TicTacToe.Editor
 
             var pImg = panel.GetComponent<Image>();
             pImg.color = new Color(0.08f, 0.08f, 0.09f, 0.95f);
+            var popupSprite = LoadSpriteAt($"{NeedsArtDir}/genericPopup.psd");
+            if (popupSprite != null)
+            {
+                pImg.sprite = popupSprite;
+                pImg.type = Image.Type.Sliced;
+            }
 
             var v = panel.GetComponent<VerticalLayoutGroup>();
             v.padding = new RectOffset(40, 40, 40, 40);

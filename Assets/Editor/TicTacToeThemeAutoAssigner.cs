@@ -9,7 +9,7 @@ namespace TicTacToe.Editor
     public static class TicTacToeThemeAutoAssigner
     {
         private const string ThemeAssetPath = "Assets/ScriptableObjects/Theme_Default.asset";
-        private const string XoPsdPath = "Assets/Art/XO.psd";
+        private const string XoPsdPath = "Assets/Needs/Art/XO.psd";
 
         [MenuItem("Tools/TicTacToe/Auto Assign Theme Sprites")]
         public static void AutoAssign()

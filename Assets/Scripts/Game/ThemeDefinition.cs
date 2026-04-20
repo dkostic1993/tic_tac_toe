@@ -18,6 +18,10 @@ namespace TicTacToe.Game
         public Color cellColor = new Color(1f, 1f, 1f, 0.08f);
         public Sprite strikeSprite;
         public Color strikeColor = new Color(1f, 1f, 1f, 0.65f);
+
+        [Header("VFX Particles (theme-specific)")]
+        public Sprite particleA;
+        public Sprite particleB;
     }
 }
 
