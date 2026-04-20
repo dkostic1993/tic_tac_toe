@@ -24,6 +24,7 @@ namespace TicTacToe.Audio
         private AudioSettingsModel _settings;
 
         private Dictionary<AudioEvent, Func<AudioClip>> _clipMap;
+        private bool _bgmStartDeferred;
 
         private void Awake()
         {
@@ -60,6 +61,7 @@ namespace TicTacToe.Audio
             _settings.bgmEnabled = enabled;
             _settingsService.Save(_settings);
             ApplySettings();
+            TryStartBgmIfAllowed();
         }
 
         public void SetSfxEnabled(bool enabled)
@@ -71,6 +73,10 @@ namespace TicTacToe.Audio
 
         public void Play(AudioEvent audioEvent)
         {
+            // WebGL browsers typically block audio until a user gesture.
+            // Any SFX play triggered by a click/tap is a good time to start BGM.
+            TryStartBgmIfAllowed();
+
             if (!_settings.sfxEnabled || sfxSource == null)
                 return;
 
@@ -101,11 +107,34 @@ namespace TicTacToe.Audio
                 bgmSource.clip = bgmClip;
                 bgmSource.mute = !_settings.bgmEnabled;
                 if (_settings.bgmEnabled && bgmClip != null && !bgmSource.isPlaying)
+                {
+#if UNITY_WEBGL
+                    // Defer until a user gesture triggers audio unlock.
+                    _bgmStartDeferred = true;
+#else
                     bgmSource.Play();
+#endif
+                }
             }
 
             if (sfxSource != null)
                 sfxSource.mute = !_settings.sfxEnabled;
+        }
+
+        private void TryStartBgmIfAllowed()
+        {
+            if (!_bgmStartDeferred)
+                return;
+            if (!_settings.bgmEnabled || bgmSource == null || bgmClip == null)
+                return;
+            if (bgmSource.isPlaying)
+            {
+                _bgmStartDeferred = false;
+                return;
+            }
+
+            bgmSource.Play();
+            _bgmStartDeferred = false;
         }
     }
 }

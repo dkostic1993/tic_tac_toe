@@ -328,11 +328,12 @@ namespace TicTacToe.Editor
             SetPrivateField(mgr, "sfxSource", sfxSource);
 
             // Auto-wire provided assignment clips when present in Assets/Audio.
-            var music = FindAudioClipByName("music");
-            var click1 = FindAudioClipByName("click1");
-            var click2 = FindAudioClipByName("click2");
-            var pop = FindAudioClipByName("pop");
-            var woosh = FindAudioClipByName("woosh");
+            // Prefer direct paths to avoid AssetDatabase.FindAssets timing/import quirks.
+            var music = LoadClipAt("Assets/Audio/music.wav") ?? FindAudioClipByName("music");
+            var click1 = LoadClipAt("Assets/Audio/click1.wav") ?? FindAudioClipByName("click1");
+            var click2 = LoadClipAt("Assets/Audio/click2.wav") ?? FindAudioClipByName("click2");
+            var pop = LoadClipAt("Assets/Audio/pop.wav") ?? FindAudioClipByName("pop");
+            var woosh = LoadClipAt("Assets/Audio/woosh.wav") ?? FindAudioClipByName("woosh");
 
             SetPrivateField(mgr, "bgmClip", music);
             SetPrivateField(mgr, "buttonClickClips", new[] { click1, click2 });
@@ -344,6 +345,13 @@ namespace TicTacToe.Editor
             SetPrivateField(mgr, "strikeWinClip", pop);
 
             return mgr;
+        }
+
+        private static AudioClip LoadClipAt(string assetPath)
+        {
+            // Ensure it's imported before we try to load it (prevents nulls on fresh projects).
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            return AssetDatabase.LoadAssetAtPath<AudioClip>(assetPath);
         }
 
         private static AudioClip FindAudioClipByName(string nameWithoutExt)
@@ -902,6 +910,13 @@ namespace TicTacToe.Editor
                         prop.arraySize = cells.Length;
                         for (var i = 0; i < cells.Length; i++)
                             prop.GetArrayElementAtIndex(i).objectReferenceValue = cells[i];
+                    }
+                    else if (value is Object[] objects && prop.isArray)
+                    {
+                        // Generic handler for serialized Object reference arrays (e.g. AudioClip[]).
+                        prop.arraySize = objects.Length;
+                        for (var i = 0; i < objects.Length; i++)
+                            prop.GetArrayElementAtIndex(i).objectReferenceValue = objects[i];
                     }
                     break;
             }

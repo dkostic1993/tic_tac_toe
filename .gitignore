@@ -1,12 +1,15 @@
+## Unity generated
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
 [Bb]uild/
 [Bb]uilds/
+build/
 [Ll]ogs/
 [Mm]emoryCaptures/
 UserSettings/
 
+## Rider / VS / IDE
 *.csproj
 *.unityproj
 *.sln
@@ -22,6 +25,18 @@ UserSettings/
 *.opendb
 *.VC.db
 *.VC.VC.opendb
+.idea/
+.vscode/
 
+## OS
 .DS_Store
 Thumbs.db
+__MACOSX/
+
+## Addressables / AssetBundles / Streaming
+*.bundle
+*.unitypackage
+
+## WebGL / exports
+*.zip
+*.tar.gz
